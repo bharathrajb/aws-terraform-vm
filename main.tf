@@ -11,7 +11,7 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Fix applied: Points directly to the absolute runner path
+# Key pair configuration pointing to the absolute GitHub runner path
 resource "aws_key_pair" "deployer_key" {
   key_name   = "deployer-key"
   public_key = file("/home/runner/.ssh/aws_key.pub")
