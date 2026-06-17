@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -11,15 +15,18 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Added a unique suffix to prevent state collisions
+# Generates a random 4-character hex code for every unique pipeline execution
+resource "random_id" "run_suffix" {
+  byte_length = 2
+}
+
 resource "aws_key_pair" "deployer_key" {
-  key_name   = "deployer-key-github-actions"
+  key_name   = "deployer-key-${random_id.run_suffix.hex}"
   public_key = file("/home/runner/.ssh/aws_key.pub")
 }
 
-# Added a unique suffix to prevent state collisions
 resource "aws_security_group" "nginx_sg" {
-  name        = "nginx_sg_github_actions"
+  name        = "nginx_sg_${random_id.run_suffix.hex}"
   description = "Allow HTTP and SSH traffic"
 
   ingress {
@@ -51,7 +58,7 @@ resource "aws_instance" "web_server" {
   vpc_security_group_ids = [aws_security_group.nginx_sg.id]
 
   tags = {
-    Name = "Ansible-Managed-Nginx-Server"
+    Name = "Ansible-Managed-Nginx-Server-${random_id.run_suffix.hex}"
   }
 
   provisioner "local-exec" {
