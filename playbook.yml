@@ -10,7 +10,7 @@
         module: wait_for
         host: "{{ inventory_hostname }}"
         port: 22
-        delay: 10
+        delay: 5
         timeout: 180
         state: started
 
