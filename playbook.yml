@@ -1,0 +1,24 @@
+---
+- name: Configure Web Server with Nginx
+  hosts: webservers
+  become: yes
+  tasks:
+    - name: Ensure apt cache is updated
+      apt:
+        update_cache: yes
+
+    - name: Install Nginx Web Server
+      apt:
+        name: nginx
+        state: present
+
+    - name: Start and Enable Nginx Service
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Deploy Custom Landing Page
+      copy:
+        content: "<h1>Hello Bharathraj! Successfully deployed via Terraform + Ansible + GitHub Actions!</h1>"
+        dest: /var/www/html/index.html
