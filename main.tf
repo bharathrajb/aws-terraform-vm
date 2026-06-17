@@ -45,7 +45,7 @@ resource "aws_security_group" "nginx_sg" {
 
 resource "aws_instance" "web_server" {
   ami                    = "ami-0ed9277fb7eb570c9"
-  instance_type          = "t2.micro"
+  instance_type          = "t3.micro"
   key_name               = aws_key_pair.deployer_key.key_name
   vpc_security_group_ids = [aws_security_group.nginx_sg.id]
 
