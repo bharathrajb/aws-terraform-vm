@@ -1,6 +1,6 @@
 name: "DevOps Pipeline"
 
-# This enables the manual "Run workflow" button with input fields
+# Enables the manual "Run workflow" button with credential fields
 on:
   workflow_dispatch:
     inputs:
@@ -17,6 +17,9 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     name: "Provision & Configure"
@@ -26,7 +29,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Uses the manual inputs you type in the UI instead of hidden secrets
+      # Uses the manual inputs you paste into the UI form
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -44,11 +47,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ansible
 
-      - name: Inject SSH Private Key for Ansible
+      - name: Inject SSH Keys for Ansible & Terraform
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ~/.ssh/aws_key
-          chmod 600 ~/.ssh/aws_key
+          mkdir -p /home/runner/.ssh
+          # Inject the private key from your GitHub secrets repository panel
+          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > /home/runner/.ssh/aws_key
+          chmod 600 /home/runner/.ssh/aws_key
+          
+          # Automatically generate the matching public key for Terraform
+          ssh-keygen -y -f /home/runner/.ssh/aws_key > /home/runner/.ssh/aws_key.pub
+          chmod 644 /home/runner/.ssh/aws_key.pub
 
       - name: Terraform Init & Apply
         run: |

@@ -1,24 +1,38 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 provider "aws" {
   region = "us-east-1"
 }
 
-# 1. Import your local public key to AWS
+# Key pair configuration using the absolute GitHub runner workspace path
 resource "aws_key_pair" "deployer_key" {
-  key_name   = "centos-vm-key"
-  public_key = file("~/.ssh/aws_key.pub")
+  key_name   = "deployer-key"
+  public_key = file("/home/runner/.ssh/aws_key.pub")
 }
 
-# 2. Configure Firewall / Security Group
-resource "aws_security_group" "allow_ssh" {
-  name        = "allow_ssh_centos"
-  description = "Allow inbound SSH traffic"
+resource "aws_security_group" "nginx_sg" {
+  name        = "nginx_sg"
+  description = "Allow HTTP and SSH traffic"
 
   ingress {
-    description = "SSH from anywhere"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] 
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -29,19 +43,23 @@ resource "aws_security_group" "allow_ssh" {
   }
 }
 
-# 3. Provision the Free-Tier Instance (Switching to t3.micro)
-resource "aws_instance" "free_vm" {
-  ami                    = "ami-0c7217cdde317cfec" # Ubuntu 22.04 LTS in us-east-1
-  instance_type          = "t3.micro"             # Free Tier Eligible
+resource "aws_instance" "web_server" {
+  ami                    = "ami-0ed9277fb7eb570c9" # Standard Amazon Linux 2023 / RHEL equivalent AMI
+  instance_type          = "t2.micro"
   key_name               = aws_key_pair.deployer_key.key_name
-  vpc_security_group_ids = [aws_security_group.allow_ssh.id]
+  vpc_security_group_ids = [aws_security_group.nginx_sg.id]
 
   tags = {
-    Name = "CentOS-Triggered-VM"
+    Name = "Ansible-Managed-Nginx-Server"
+  }
+
+  # Generates the inventory file dynamically for the Ansible step
+  provisioner "local-exec" {
+    command = "echo '[webservers]\n${self.public_ip} ansible_user=ec2-user ansible_ssh_private_key_file=/home/runner/.ssh/aws_key ansible_ssh_common_args=\"-o StrictHostKeyChecking=no\"' > inventory.ini"
   }
 }
 
-# 4. Show the target connection string when finished
-output "ssh_connection_command" {
-  value = "ssh -i ~/.ssh/aws_key ubuntu@${aws_instance.free_vm.public_ip}"
+output "instance_public_ip" {
+  value       = aws_instance.web_server.public_ip
+  description = "The public IP address of the newly provisioned web server"
 }
