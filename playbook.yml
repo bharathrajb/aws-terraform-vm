@@ -2,23 +2,24 @@
 - name: Configure Web Server with Nginx
   hosts: webservers
   become: yes
-  tasks:
-    - name: Ensure apt cache is updated
-      apt:
-        update_cache: yes
+  gather_facts: no  # Disable initial fact gathering until connection is stable
 
-    - name: Install Nginx Web Server
-      apt:
+  pre_tasks:
+    - name: Wait for system to become reachable
+      wait_for_connection:
+        timeout: 120
+
+    - name: Gather facts after validation
+      setup:
+
+  tasks:
+    - name: Install Nginx
+      dnf:
         name: nginx
         state: present
 
-    - name: Start and Enable Nginx Service
+    - name: Start and enable Nginx service
       service:
         name: nginx
         state: started
         enabled: yes
-
-    - name: Deploy Custom Landing Page
-      copy:
-        content: "<h1>Hello Bharathraj! Successfully deployed via Terraform + Ansible + GitHub Actions!</h1>"
-        dest: /var/www/html/index.html
