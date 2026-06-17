@@ -11,14 +11,15 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Key pair configuration pointing to the absolute GitHub runner path
+# Added a unique suffix to prevent state collisions
 resource "aws_key_pair" "deployer_key" {
-  key_name   = "deployer-key"
+  key_name   = "deployer-key-github-actions"
   public_key = file("/home/runner/.ssh/aws_key.pub")
 }
 
+# Added a unique suffix to prevent state collisions
 resource "aws_security_group" "nginx_sg" {
-  name        = "nginx_sg"
+  name        = "nginx_sg_github_actions"
   description = "Allow HTTP and SSH traffic"
 
   ingress {
