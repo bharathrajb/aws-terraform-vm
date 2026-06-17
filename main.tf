@@ -11,7 +11,7 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Key pair configuration using the absolute GitHub runner workspace path
+# Fix applied: Points directly to the absolute runner path
 resource "aws_key_pair" "deployer_key" {
   key_name   = "deployer-key"
   public_key = file("/home/runner/.ssh/aws_key.pub")
@@ -44,7 +44,7 @@ resource "aws_security_group" "nginx_sg" {
 }
 
 resource "aws_instance" "web_server" {
-  ami                    = "ami-0ed9277fb7eb570c9" # Standard Amazon Linux 2023 / RHEL equivalent AMI
+  ami                    = "ami-0ed9277fb7eb570c9"
   instance_type          = "t2.micro"
   key_name               = aws_key_pair.deployer_key.key_name
   vpc_security_group_ids = [aws_security_group.nginx_sg.id]
@@ -53,7 +53,6 @@ resource "aws_instance" "web_server" {
     Name = "Ansible-Managed-Nginx-Server"
   }
 
-  # Generates the inventory file dynamically for the Ansible step
   provisioner "local-exec" {
     command = "echo '[webservers]\n${self.public_ip} ansible_user=ec2-user ansible_ssh_private_key_file=/home/runner/.ssh/aws_key ansible_ssh_common_args=\"-o StrictHostKeyChecking=no\"' > inventory.ini"
   }
