@@ -1,11 +1,18 @@
 name: "DevOps Pipeline"
 
+# This enables the manual "Run workflow" button with input fields
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      aws_access_key_id:
+        description: 'Enter your AWS Access Key ID'
+        required: true
+        type: string
+      aws_secret_access_key:
+        description: 'Enter your AWS Secret Access Key'
+        required: true
+        type: string
 
-# Explicitly define permissions to let the runner read secrets
 permissions:
   contents: read
   id-token: write
@@ -19,11 +26,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Uses the manual inputs you type in the UI instead of hidden secrets
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ github.event.inputs.aws_access_key_id }}
+          aws-secret-access-key: ${{ github.event.inputs.aws_secret_access_key }}
           aws-region: us-east-1
 
       - name: Setup Terraform
