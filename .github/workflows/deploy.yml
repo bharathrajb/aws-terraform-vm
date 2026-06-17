@@ -5,8 +5,10 @@ on:
     branches:
       - main
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+# Explicitly define permissions to let the runner read secrets
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   deploy:
@@ -17,7 +19,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # MOVE THIS UP: Authenticate with AWS first
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
