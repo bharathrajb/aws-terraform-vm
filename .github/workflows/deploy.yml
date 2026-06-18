@@ -8,11 +8,15 @@ on:
     branches:
       - main
 
+# Core requirement for OIDC authentication tokens
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   terraform-plan:
     name: "Terraform Plan"
     runs-on: ubuntu-latest
-    environment: production  # Allows the plan stage to read the AWS Environment secrets
     
     steps:
       - name: Checkout Code
@@ -21,6 +25,13 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      # Authenticate securely with AWS using your IAM Role ARN instead of keys
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsWorkflowRole # Replace with your actual AWS Role ARN
+          aws-region: us-east-1
+
       - name: Configure SSH Key
         run: |
           mkdir -p ~/.ssh
@@ -28,10 +39,6 @@ jobs:
           chmod 600 ~/.ssh/aws_key.pub
 
       - name: Terraform Init & Plan
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: "us-east-1"
         run: |
           terraform init
           terraform plan
@@ -41,7 +48,7 @@ jobs:
     needs: terraform-plan
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: production  # Triggers the manual approval gate and accesses secrets
+    environment: production
     
     steps:
       - name: Checkout Code
@@ -49,6 +56,12 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsWorkflowRole # Replace with your actual AWS Role ARN
+          aws-region: us-east-1
 
       - name: Configure SSH Keys
         run: |
@@ -58,10 +71,6 @@ jobs:
           chmod 600 ~/.ssh/aws_key.pub ~/.ssh/aws_key
 
       - name: Terraform Apply
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: "us-east-1"
         run: |
           terraform init
           terraform apply -auto-approve
