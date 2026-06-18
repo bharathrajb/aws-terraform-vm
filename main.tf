@@ -75,9 +75,18 @@ resource "aws_instance" "web_server" {
   # Executes native shell commands directly over the SSH pipe
   provisioner "remote-exec" {
     inline = [
+      # Ensure the package manager index is ready
+      "sudo dnf clean all",
+      "sudo dnf makecache -y",
+      
+      # Install extra packages repository if needed, then install Nginx gracefully
+      "sudo dnf install -y epel-release || true",
       "sudo dnf install -y nginx",
-      "sudo systemctl start nginx",
-      "sudo systemctl enable nginx"
+      
+      # Enable and verify the daemon startup process
+      "sudo systemctl daemon-reload",
+      "sudo systemctl enable nginx",
+      "sudo systemctl restart nginx"
     ]
   }
 }
