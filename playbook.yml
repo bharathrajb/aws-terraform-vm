@@ -2,7 +2,7 @@
 - name: Configure Web Server with Nginx
   hosts: webservers
   become: yes
-  gather_facts: no  # Completely bypass the problematic fact gathering step
+  gather_facts: no
 
   pre_tasks:
     - name: Wait for port 22 to become available
@@ -12,16 +12,13 @@
         delay: 5
         timeout: 180
         state: started
-      delegate_to: localhost  # Clean syntax replacement for local_action
+      delegate_to: localhost
 
   tasks:
-    - name: Install Nginx
-      dnf:
-        name: nginx
-        state: present
+    - name: Install Nginx via native shell
+      shell: dnf install -y nginx
 
-    - name: Start and enable Nginx service
-      service:
-        name: nginx
-        state: started
-        enabled: yes
+    - name: Start and enable Nginx service via native shell
+      shell: |
+        systemctl start nginx
+        systemctl enable nginx
