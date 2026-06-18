@@ -12,6 +12,7 @@ jobs:
   terraform-plan:
     name: "Terraform Plan"
     runs-on: ubuntu-latest
+    environment: production  # Allows the plan stage to read the AWS Environment secrets
     
     steps:
       - name: Checkout Code
@@ -40,7 +41,7 @@ jobs:
     needs: terraform-plan
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: production  # This triggers the manual approval check we created
+    environment: production  # Triggers the manual approval gate and accesses secrets
     
     steps:
       - name: Checkout Code
