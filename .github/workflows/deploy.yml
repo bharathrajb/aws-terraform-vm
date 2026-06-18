@@ -63,8 +63,4 @@ jobs:
           terraform init
           terraform apply -auto-approve
 
-      - name: Wait for EC2 instance to wake up
-        run: sleep 60
 
-      - name: Run Ansible Playbook
-        run: ansible-playbook -i inventory.ini playbook.yml
