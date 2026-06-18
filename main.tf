@@ -75,16 +75,14 @@ resource "aws_instance" "web_server" {
   # Executes native shell commands directly over the SSH pipe
   provisioner "remote-exec" {
     inline = [
-      # 1. Dynamically configure the official Nginx repository configuration file
-      "sudo tee /etc/yum.repos.d/nginx.repo << 'EOF'",
-[nginx-stable]
-name=nginx stable repo
-baseurl=http://nginx.org/packages/rhel/9/x86_64/
-gpgcheck=1
-enabled=1
-gpgkey=https://nginx.org/keys/nginx_signing.key
-module_hotfixes=true
-EOF",
+      # 1. Inject the Nginx repo directly by writing line-by-line using standard echoes
+      "sudo echo '[nginx-stable]' | sudo tee /etc/yum.repos.d/nginx.repo",
+      "sudo echo 'name=nginx stable repo' | sudo tee -a /etc/yum.repos.d/nginx.repo",
+      "sudo echo 'baseurl=http://nginx.org/packages/rhel/9/x86_64/' | sudo tee -a /etc/yum.repos.d/nginx.repo",
+      "sudo echo 'gpgcheck=1' | sudo tee -a /etc/yum.repos.d/nginx.repo",
+      "sudo echo 'enabled=1' | sudo tee -a /etc/yum.repos.d/nginx.repo",
+      "sudo echo 'gpgkey=https://nginx.org/keys/nginx_signing.key' | sudo tee -a /etc/yum.repos.d/nginx.repo",
+      "sudo echo 'module_hotfixes=true' | sudo tee -a /etc/yum.repos.d/nginx.repo",
 
       # 2. Clear package manager cache data
       "sudo dnf clean all",
