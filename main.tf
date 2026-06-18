@@ -75,18 +75,20 @@ resource "aws_instance" "web_server" {
   # Executes native shell commands directly over the SSH pipe
   provisioner "remote-exec" {
     inline = [
-      # Ensure the package manager index is ready
+      # 1. Force enable RHEL 9 AppStream module repositories where Nginx lives
+      "sudo dnf config-manager --set-enabled rhel-9-for-x86_64-appstream-rpms || true",
+      
+      # 2. Clean and build package indexes
       "sudo dnf clean all",
       "sudo dnf makecache -y",
       
-      # Install extra packages repository if needed, then install Nginx gracefully
-      "sudo dnf install -y epel-release || true",
+      # 3. Explicitly pull down the nginx module package stream
+      "sudo dnf module enable -y nginx:1.22 || true",
       "sudo dnf install -y nginx",
       
-      # Enable and verify the daemon startup process
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable nginx",
-      "sudo systemctl restart nginx"
+      # 4. Start and confirm daemon runtime operations
+      "sudo systemctl start nginx",
+      "sudo systemctl enable nginx"
     ]
   }
 }
