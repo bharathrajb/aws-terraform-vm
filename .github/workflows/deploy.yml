@@ -1,66 +1,66 @@
-name: "DevOps Pipeline"
+name: DevOps Pipeline
 
-# Enables the manual "Run workflow" button with credential fields
 on:
-  workflow_dispatch:
-    inputs:
-      aws_access_key_id:
-        description: 'Enter your AWS Access Key ID'
-        required: true
-        type: string
-      aws_secret_access_key:
-        description: 'Enter your AWS Secret Access Key'
-        required: true
-        type: string
-
-permissions:
-  contents: read
-  id-token: write
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  deploy:
-    name: "Provision & Configure"
+  terraform-plan:
+    name: "Terraform Plan"
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Uses the manual inputs you paste into the UI form
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ github.event.inputs.aws_access_key_id }}
-          aws-secret-access-key: ${{ github.event.inputs.aws_secret_access_key }}
-          aws-region: us-east-1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AWS_SSH_PUBLIC_KEY }}" > ~/.ssh/aws_key.pub
+          chmod 600 ~/.ssh/aws_key.pub
+
+      - name: Terraform Init & Plan
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-east-1"
+        run: |
+          terraform init
+          terraform plan
+
+  terraform-apply:
+    name: "Terraform Apply"
+    needs: terraform-plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production  # This triggers the manual approval check we created
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.15.6
 
-      - name: Install Ansible
+      - name: Configure SSH Keys
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ansible
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AWS_SSH_PUBLIC_KEY }}" > ~/.ssh/aws_key.pub
+          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ~/.ssh/aws_key
+          chmod 600 ~/.ssh/aws_key.pub ~/.ssh/aws_key
 
-      - name: Inject SSH Keys for Ansible & Terraform
-        run: |
-          mkdir -p /home/runner/.ssh
-          # Inject the private key from your GitHub secrets repository panel
-          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > /home/runner/.ssh/aws_key
-          chmod 600 /home/runner/.ssh/aws_key
-          
-          # Automatically generate the matching public key for Terraform
-          ssh-keygen -y -f /home/runner/.ssh/aws_key > /home/runner/.ssh/aws_key.pub
-          chmod 644 /home/runner/.ssh/aws_key.pub
-
-      - name: Terraform Init & Apply
+      - name: Terraform Apply
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-east-1"
         run: |
           terraform init
           terraform apply -auto-approve
-
-
