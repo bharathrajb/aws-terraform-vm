@@ -75,18 +75,25 @@ resource "aws_instance" "web_server" {
   # Executes native shell commands directly over the SSH pipe
   provisioner "remote-exec" {
     inline = [
-      # 1. Force enable RHEL 9 AppStream module repositories where Nginx lives
-      "sudo dnf config-manager --set-enabled rhel-9-for-x86_64-appstream-rpms || true",
-      
-      # 2. Clean and build package indexes
+      # 1. Dynamically configure the official Nginx repository configuration file
+      "sudo tee /etc/yum.repos.d/nginx.repo << 'EOF'",
+[nginx-stable]
+name=nginx stable repo
+baseurl=http://nginx.org/packages/rhel/9/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://nginx.org/keys/nginx_signing.key
+module_hotfixes=true
+EOF",
+
+      # 2. Clear package manager cache data
       "sudo dnf clean all",
       "sudo dnf makecache -y",
-      
-      # 3. Explicitly pull down the nginx module package stream
-      "sudo dnf module enable -y nginx:1.22 || true",
+
+      # 3. Install Nginx directly from the newly added upstream repository
       "sudo dnf install -y nginx",
-      
-      # 4. Start and confirm daemon runtime operations
+
+      # 4. Start the Nginx process and enable boot persistence
       "sudo systemctl start nginx",
       "sudo systemctl enable nginx"
     ]
