@@ -53,7 +53,7 @@ resource "aws_security_group" "nginx_sg" {
   }
 }
 
-# 4. Provisions the EC2 Instance and installs Nginx via native SSH
+# 4. Provisions the EC2 Instance and Bootstrap-installs Nginx via User Data
 resource "aws_instance" "web_server" {
   ami                    = "ami-0ed9277fb7eb570c9"
   instance_type          = "t3.micro"
@@ -64,38 +64,29 @@ resource "aws_instance" "web_server" {
     Name = "Terraform-Managed-Nginx-Server-${random_id.run_suffix.hex}"
   }
 
-  # Configures the connection information for the remote-exec provisioner
-  connection {
-    type        = "ssh"
-    user        = "ec2-user"
-    private_key = file("/home/runner/.ssh/aws_key")
-    host        = self.public_ip
-  }
+  # Cloud-init User Data script that executes natively at the root system level on bootup
+  user_data = <<-EOF
+              #!/bin/bash
+              # Setup the upstream stable repo configuration safely
+              echo '[nginx-stable]' > /etc/yum.repos.d/nginx.repo
+              echo 'name=nginx stable repo' >> /etc/yum.repos.d/nginx.repo
+              echo 'baseurl=http://nginx.org/packages/rhel/9/x86_64/' >> /etc/yum.repos.d/nginx.repo
+              echo 'gpgcheck=0' >> /etc/yum.repos.d/nginx.repo
+              echo 'enabled=1' >> /etc/yum.repos.d/nginx.repo
+              echo 'module_hotfixes=true' >> /etc/yum.repos.d/nginx.repo
 
-  # Executes native shell commands directly over the SSH pipe
-  provisioner "remote-exec" {
-    inline = [
-      # 1. Inject the Nginx repo directly by writing line-by-line using standard echoes
-      "sudo echo '[nginx-stable]' | sudo tee /etc/yum.repos.d/nginx.repo",
-      "sudo echo 'name=nginx stable repo' | sudo tee -a /etc/yum.repos.d/nginx.repo",
-      "sudo echo 'baseurl=http://nginx.org/packages/rhel/9/x86_64/' | sudo tee -a /etc/yum.repos.d/nginx.repo",
-      "sudo echo 'gpgcheck=1' | sudo tee -a /etc/yum.repos.d/nginx.repo",
-      "sudo echo 'enabled=1' | sudo tee -a /etc/yum.repos.d/nginx.repo",
-      "sudo echo 'gpgkey=https://nginx.org/keys/nginx_signing.key' | sudo tee -a /etc/yum.repos.d/nginx.repo",
-      "sudo echo 'module_hotfixes=true' | sudo tee -a /etc/yum.repos.d/nginx.repo",
+              # Clean cache and install packages natively
+              dnf clean all
+              dnf makecache -y
+              dnf install -y nginx
 
-      # 2. Clear package manager cache data
-      "sudo dnf clean all",
-      "sudo dnf makecache -y",
+              # Start the service engines and enable boot hooks
+              systemctl start nginx
+              systemctl enable nginx
+              EOF
 
-      # 3. Install Nginx directly from the newly added upstream repository
-      "sudo dnf install -y nginx",
-
-      # 4. Start the Nginx process and enable boot persistence
-      "sudo systemctl start nginx",
-      "sudo systemctl enable nginx"
-    ]
-  }
+  # Ensure user data run finishes execution processing hooks gracefully
+  user_data_replace_on_change = true
 }
 
 output "instance_public_ip" {
