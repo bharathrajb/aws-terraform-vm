@@ -8,6 +8,11 @@ on:
     branches:
       - main
 
+# Crucial: This gives the runner permission to request the OIDC JWT token from GitHub
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   terraform-plan:
     name: "Terraform Plan"
@@ -20,6 +25,13 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      # 1. Exchange the GitHub JWT token for temporary AWS credentials
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/GitHubActionsWorkflowRole
+          aws-region: us-east-1
+
       - name: Configure SSH Key
         run: |
           mkdir -p ~/.ssh
@@ -27,10 +39,6 @@ jobs:
           chmod 600 ~/.ssh/aws_key.pub
 
       - name: Terraform Init & Plan
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: "us-east-1"
         run: |
           terraform init
           terraform plan
@@ -40,7 +48,7 @@ jobs:
     needs: terraform-plan
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: production  # This triggers the manual approval check we created
+    environment: production
     
     steps:
       - name: Checkout Code
@@ -48,6 +56,13 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+
+      # 2. Exchange the token again safely for the deployment stage
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::685448854865:role/GitHubActionsWorkflowRole
+          aws-region: us-east-1
 
       - name: Configure SSH Keys
         run: |
@@ -57,10 +72,6 @@ jobs:
           chmod 600 ~/.ssh/aws_key.pub ~/.ssh/aws_key
 
       - name: Terraform Apply
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: "us-east-1"
         run: |
           terraform init
           terraform apply -auto-approve
