@@ -8,7 +8,7 @@ on:
     branches:
       - main
 
-# Core requirement for OIDC authentication tokens
+# Crucial: This gives the runner permission to request the OIDC JWT token from GitHub
 permissions:
   id-token: write
   contents: read
@@ -25,11 +25,11 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # Authenticate securely with AWS using your IAM Role ARN instead of keys
+      # 1. Exchange the GitHub JWT token for temporary AWS credentials
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsWorkflowRole # Replace with your actual AWS Role ARN
+          role-to-assume: arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/GitHubActionsWorkflowRole # 👈 Replace with your AWS Account ID
           aws-region: us-east-1
 
       - name: Configure SSH Key
@@ -57,10 +57,11 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      # 2. Exchange the token again safely for the deployment stage
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsWorkflowRole # Replace with your actual AWS Role ARN
+          role-to-assume: arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/GitHubActionsWorkflowRole # 👈 Replace with your AWS Account ID
           aws-region: us-east-1
 
       - name: Configure SSH Keys
