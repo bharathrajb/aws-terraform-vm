@@ -8,7 +8,7 @@ on:
     branches:
       - main
 
-# Crucial: This gives the runner permission to request the OIDC JWT token from GitHub
+# Crucial: Gives the GitHub runner permission to request the OIDC JWT token
 permissions:
   id-token: write
   contents: read
@@ -29,9 +29,8 @@ jobs:
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::685448854865:role/GitHubActionsWorkflowRole
+          role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
-
 
       - name: Configure SSH Key
         run: |
@@ -62,7 +61,7 @@ jobs:
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::685448854865:role/GitHubActionsWorkflowRole
+          role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
 
       - name: Configure SSH Keys
