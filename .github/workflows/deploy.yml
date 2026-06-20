@@ -32,11 +32,19 @@ jobs:
           role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
 
+<<<<<<< Updated upstream
       - name: Configure SSH Key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.AWS_SSH_PUBLIC_KEY }}" > ~/.ssh/aws_key.pub
           chmod 600 ~/.ssh/aws_key.pub
+=======
+      # 2. Write the public key straight to the local runner workspace folder
+      - name: Configure SSH Key
+        run: |
+          echo "${{ secrets.AWS_SSH_PUBLIC_KEY }}" > ./aws_key.pub
+          chmod 600 ./aws_key.pub
+>>>>>>> Stashed changes
 
       - name: Terraform Init & Plan
         run: |
@@ -57,19 +65,32 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+<<<<<<< Updated upstream
       # 2. Exchange the token again safely for the deployment stage
+=======
+      # 3. Exchange the token again safely for the deployment stage
+>>>>>>> Stashed changes
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
 
+<<<<<<< Updated upstream
       - name: Configure SSH Keys
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.AWS_SSH_PUBLIC_KEY }}" > ~/.ssh/aws_key.pub
           echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ~/.ssh/aws_key
           chmod 600 ~/.ssh/aws_key.pub ~/.ssh/aws_key
+=======
+      # 4. Write both key materials locally to ensure apply phase works flawlessly
+      - name: Configure SSH Keys
+        run: |
+          echo "${{ secrets.AWS_SSH_PUBLIC_KEY }}" > ./aws_key.pub
+          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ./aws_key
+          chmod 600 ./aws_key.pub ./aws_key
+>>>>>>> Stashed changes
 
       - name: Terraform Apply
         run: |
