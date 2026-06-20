@@ -20,11 +20,7 @@ resource "random_id" "run_suffix" {
   byte_length = 2
 }
 
-<<<<<<< Updated upstream
-# 2. Configures the SSH Key Pair for the EC2 Instance
-=======
 # 2. Configures the SSH Key Pair using the local workspace file path
->>>>>>> Stashed changes
 resource "aws_key_pair" "deployer_key" {
   key_name   = "deployer-key-${random_id.run_suffix.hex}"
   public_key = file("${path.module}/aws_key.pub")
