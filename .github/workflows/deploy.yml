@@ -8,7 +8,6 @@ on:
     branches:
       - main
 
-# Crucial: Gives the GitHub runner permission to request the OIDC JWT token
 permissions:
   id-token: write
   contents: read
@@ -25,20 +24,15 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # 1. Exchange the GitHub JWT token for temporary AWS credentials
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
 
-      # 2. Write the public key straight to the local runner workspace folder
-      - name: Configure SSH Key
-        run: |
-          echo "${{ secrets.AWS_SSH_PUBLIC_KEY }}" > ./aws_key.pub
-          chmod 600 ./aws_key.pub
-
       - name: Terraform Init & Plan
+        env:
+          TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
         run: |
           terraform init
           terraform plan
@@ -57,21 +51,15 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # 3. Exchange the token again safely for the deployment stage
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
 
-      # 4. Write both key materials locally to ensure apply phase works flawlessly
-      - name: Configure SSH Keys
-        run: |
-          echo "${{ secrets.AWS_SSH_PUBLIC_KEY }}" > ./aws_key.pub
-          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ./aws_key
-          chmod 600 ./aws_key.pub ./aws_key
-
       - name: Terraform Apply
+        env:
+          TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
         run: |
           terraform init
           terraform apply -auto-approve
