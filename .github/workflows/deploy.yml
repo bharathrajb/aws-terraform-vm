@@ -30,12 +30,11 @@ jobs:
           role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
 
+      # Explicitly forces the public key string into the plan execution argument array
       - name: Terraform Init & Plan
-        env:
-          TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
         run: |
           terraform init
-          terraform plan
+          terraform plan -var="ssh_public_key=${{ secrets.AWS_SSH_PUBLIC_KEY }}"
 
   terraform-apply:
     name: "Terraform Apply"
@@ -57,9 +56,8 @@ jobs:
           role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
 
+      # Explicitly forces the public key string into the apply execution argument array
       - name: Terraform Apply
-        env:
-          TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
         run: |
           terraform init
-          terraform apply -auto-approve
+          terraform apply -auto-approve -var="ssh_public_key=${{ secrets.AWS_SSH_PUBLIC_KEY }}"

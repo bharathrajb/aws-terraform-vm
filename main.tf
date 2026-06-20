@@ -15,12 +15,10 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Variable loaded directly from the GitHub runner environment
+# Declared input variable mapping
 variable "ssh_public_key" {
   type        = string
   description = "The public key material passed from GitHub secrets"
-  # This is a clean, valid placeholder key configuration structure
-  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJtPshK368YyT7X9Xp6wN8M9N0F9Pz9Q9R9S9T9U root@terraform"
 }
 
 # 1. Generates a unique execution suffix to avoid duplication conflicts
