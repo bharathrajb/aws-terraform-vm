@@ -11,16 +11,24 @@ terraform {
   }
 }
 
-# 1. Primary Provider Configuration (Default: us-east-1)
+# ==========================================
+# PROVIDER CONFIGURATIONS
+# ==========================================
+
+# Primary Provider Configuration (Default: us-east-1)
 provider "aws" {
   region = "us-east-1"
 }
 
-# 2. Secondary Provider Configuration (Aliased: us-west-2)
+# Secondary Provider Configuration (Aliased: us-west-2)
 provider "aws" {
   alias  = "us_west_2"
   region = "us-west-2"
 }
+
+# ==========================================
+# INPUT VARIABLES
+# ==========================================
 
 variable "ssh_public_key" {
   type        = string
@@ -33,24 +41,65 @@ variable "target_count" {
   default     = 1
 }
 
+# ==========================================
+# DYNAMIC AMI DATA SOURCE LOOKUPS
+# ==========================================
+
+# Dynamically fetch the latest RHEL 9 AMI in us-east-1
+data "aws_ami" "rhel9_east" {
+  most_recent = true
+  owners      = ["309956199498"] # Official Red Hat Owner ID
+
+  filter {
+    name   = "name"
+    values = ["RHEL-9.*-x86_64-*"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
+# Dynamically fetch the latest RHEL 9 AMI in us-west-2
+data "aws_ami" "rhel9_west" {
+  provider    = aws.us_west_2
+  most_recent = true
+  owners      = ["309956199498"] # Official Red Hat Owner ID
+
+  filter {
+    name   = "name"
+    values = ["RHEL-9.*-x86_64-*"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
+# ==========================================
+# SHARED RESOURCES & SECURITY
+# ==========================================
+
 resource "random_id" "run_suffix" {
   byte_length = 2
 }
 
-# Key Pair for Primary Region
+# Key Pair for Primary Region (us-east-1)
 resource "aws_key_pair" "deployer_key_east" {
   key_name   = "deployer-key-east-${random_id.run_suffix.hex}"
   public_key = var.ssh_public_key
 }
 
-# Key Pair for Secondary Region (Requires explicit provider mapping)
+# Key Pair for Secondary Region (us-west-2)
 resource "aws_key_pair" "deployer_key_west" {
   provider   = aws.us_west_2
   key_name   = "deployer-key-west-${random_id.run_suffix.hex}"
   public_key = var.ssh_public_key
 }
 
-# Security Group for Primary Region
+# Security Group for Primary Region (us-east-1)
 resource "aws_security_group" "nginx_sg_east" {
   name        = "nginx_sg_east_${random_id.run_suffix.hex}"
   description = "Allow HTTP and SSH traffic in us-east-1"
@@ -77,7 +126,7 @@ resource "aws_security_group" "nginx_sg_east" {
   }
 }
 
-# Security Group for Secondary Region
+# Security Group for Secondary Region (us-west-2)
 resource "aws_security_group" "nginx_sg_west" {
   provider    = aws.us_west_2
   name        = "nginx_sg_west_${random_id.run_suffix.hex}"
@@ -108,11 +157,10 @@ resource "aws_security_group" "nginx_sg_west" {
 # ==========================================
 # COMPUTE RESOURCES - US-EAST-1 (PRIMARY)
 # ==========================================
+
 resource "aws_instance" "web_server_east" {
   count                  = var.target_count
-  
-  # RHEL 9 AMI in us-east-1
-  ami                    = "ami-0ed9277fb7eb570c9"
+  ami                    = data.aws_ami.rhel9_east.id
   instance_type          = "t3.micro"
   key_name               = aws_key_pair.deployer_key_east.key_name
   vpc_security_group_ids = [aws_security_group.nginx_sg_east.id]
@@ -146,13 +194,11 @@ resource "aws_instance" "web_server_east" {
 # ==========================================
 # COMPUTE RESOURCES - US-WEST-2 (SECONDARY)
 # ==========================================
+
 resource "aws_instance" "web_server_west" {
-  # Tells Terraform to explicitly use the us-west-2 aliased provider
   provider               = aws.us_west_2
   count                  = var.target_count
-  
-  # RHEL 9 AMI in us-west-2 (Note: AMIs are region-specific, this is verified for west-2)
-  ami                    = "ami-03c7c1f17fe054016"
+  ami                    = data.aws_ami.rhel9_west.id
   instance_type          = "t3.micro"
   key_name               = aws_key_pair.deployer_key_west.key_name
   vpc_security_group_ids = [aws_security_group.nginx_sg_west.id]
@@ -183,7 +229,10 @@ resource "aws_instance" "web_server_west" {
   user_data_replace_on_change = true
 }
 
-# Outputs for tracking both environments
+# ==========================================
+# OUTPUT FIELDS
+# ==========================================
+
 output "us_east_1_public_ips" {
   value       = aws_instance.web_server_east[*].public_ip
   description = "Public IPs of running servers in us-east-1"
