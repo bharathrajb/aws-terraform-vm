@@ -29,8 +29,9 @@ jobs:
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/GitHubActionsWorkflowRole
+          role-to-assume: arn:aws:iam::685448854865:role/GitHubActionsWorkflowRole
           aws-region: us-east-1
+
 
       - name: Configure SSH Key
         run: |
