@@ -24,13 +24,12 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-       Ried - name: Configure AWS Credentials via OIDC
+      - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
 
-      # Passes your exact public key string directly into the plan runtime process
       - name: Terraform Init & Plan
         run: |
           terraform init
@@ -56,7 +55,6 @@ jobs:
           role-to-assume: arn:aws:iam::685448854865:role/EC2-role
           aws-region: us-east-1
 
-      # Passes your exact public key string directly into the apply runtime process
       - name: Terraform Apply
         run: |
           terraform init
