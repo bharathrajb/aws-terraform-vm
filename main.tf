@@ -15,15 +15,21 @@ provider "aws" {
   region = "us-east-1"
 }
 
+# Variable loaded directly from the GitHub runner environment
+variable "ssh_public_key" {
+  type        = string
+  description = "The public key material passed from GitHub secrets"
+}
+
 # 1. Generates a unique execution suffix to avoid duplication conflicts
 resource "random_id" "run_suffix" {
   byte_length = 2
 }
 
-# 2. Configures the SSH Key Pair using the local workspace file path
+# 2. Configures the SSH Key Pair using the direct string variable
 resource "aws_key_pair" "deployer_key" {
   key_name   = "deployer-key-${random_id.run_suffix.hex}"
-  public_key = file("${path.module}/aws_key.pub")
+  public_key = var.ssh_public_key
 }
 
 # 3. Creates the Security Group allowing SSH and HTTP traffic
@@ -64,10 +70,8 @@ resource "aws_instance" "web_server" {
     Name = "Terraform-Managed-Nginx-Server-${random_id.run_suffix.hex}"
   }
 
-  # Cloud-init User Data script that executes natively at the root system level on bootup
   user_data = <<-EOF
               #!/bin/bash
-              # Setup the upstream stable repo configuration safely
               echo '[nginx-stable]' > /etc/yum.repos.d/nginx.repo
               echo 'name=nginx stable repo' >> /etc/yum.repos.d/nginx.repo
               echo 'baseurl=http://nginx.org/packages/rhel/9/x86_64/' >> /etc/yum.repos.d/nginx.repo
@@ -75,17 +79,14 @@ resource "aws_instance" "web_server" {
               echo 'enabled=1' >> /etc/yum.repos.d/nginx.repo
               echo 'module_hotfixes=true' >> /etc/yum.repos.d/nginx.repo
 
-              # Clean cache and install packages natively
               dnf clean all
               dnf makecache -y
               dnf install -y nginx
 
-              # Start the service engines and enable boot hooks
               systemctl start nginx
               systemctl enable nginx
               EOF
 
-  # Ensure user data run finishes execution processing hooks gracefully
   user_data_replace_on_change = true
 }
 
