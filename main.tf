@@ -15,24 +15,32 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Declared input variable mapping
 variable "ssh_public_key" {
   type        = string
-  description = "The public key material passed from GitHub secrets"
+  description = "The public key material passed directly from the workflow run"
 }
 
-# 1. Generates a unique execution suffix to avoid duplication conflicts
+# 1. Map definition for our multi-instance setup
+variable "web_servers" {
+  type = map(object({
+    instance_type = string
+    server_role   = string
+  }))
+  default = {
+    "web-server-01" = { instance_type = "t3.micro", server_role = "frontend-primary" }
+    "web-server-02" = { instance_type = "t3.micro", server_role = "frontend-secondary" }
+  }
+}
+
 resource "random_id" "run_suffix" {
   byte_length = 2
 }
 
-# 2. Configures the SSH Key Pair using the direct string variable
 resource "aws_key_pair" "deployer_key" {
   key_name   = "deployer-key-${random_id.run_suffix.hex}"
   public_key = var.ssh_public_key
 }
 
-# 3. Creates the Security Group allowing SSH and HTTP traffic
 resource "aws_security_group" "nginx_sg" {
   name        = "nginx_sg_${random_id.run_suffix.hex}"
   description = "Allow HTTP and SSH traffic"
@@ -59,15 +67,18 @@ resource "aws_security_group" "nginx_sg" {
   }
 }
 
-# 4. Provisions the EC2 Instance and Bootstrap-installs Nginx via User Data
+# 2. Dynamic EC2 provisioning using for_each loop
 resource "aws_instance" "web_server" {
+  for_each               = var.web_servers
+  
   ami                    = "ami-0ed9277fb7eb570c9"
-  instance_type          = "t3.micro"
+  instance_type          = each.value.instance_type
   key_name               = aws_key_pair.deployer_key.key_name
   vpc_security_group_ids = [aws_security_group.nginx_sg.id]
 
   tags = {
-    Name = "Terraform-Managed-Nginx-Server-${random_id.run_suffix.hex}"
+    Name = "Terraform-${each.key}-${random_id.run_suffix.hex}"
+    Role = each.value.server_role
   }
 
   user_data = <<-EOF
@@ -83,6 +94,9 @@ resource "aws_instance" "web_server" {
               dnf makecache -y
               dnf install -y nginx
 
+              # Customize individual index pages slightly to see which server is which
+              echo "<h1>Hello from ${each.key} (${each.value.server_role})</h1>" > /usr/share/nginx/html/index.html
+
               systemctl start nginx
               systemctl enable nginx
               EOF
@@ -90,7 +104,8 @@ resource "aws_instance" "web_server" {
   user_data_replace_on_change = true
 }
 
-output "instance_public_ip" {
-  value       = aws_instance.web_server.public_ip
-  description = "The public IP address of the newly provisioned web server"
+# 3. Output map rendering both public IPs cleanly
+output "instance_public_ips" {
+  value       = { for k, v in aws_instance.web_server : k => v.public_ip }
+  description = "The public IP addresses of the newly provisioned web servers"
 }
