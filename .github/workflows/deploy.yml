@@ -8,6 +8,7 @@ on:
     branches:
       - main
 
+# Crucial: This gives the runner permission to request the OIDC JWT token from GitHub
 permissions:
   id-token: write
   contents: read
