@@ -1,4 +1,8 @@
+# ==========================================
+# 1. TERRAFORM INITIALIZATION & S3 BACKEND
+# ==========================================
 terraform {
+  required_version = ">= 1.0.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -9,97 +13,79 @@ terraform {
       version = "~> 3.0"
     }
   }
+
+  backend "s3" {
+    bucket  = "raj-cloud-terraform-state-2026"
+    key     = "build-ec2/terraform.tfstate"
+    region  = "us-east-1"
+    encrypt = true
+  }
 }
 
 # ==========================================
-# PROVIDER CONFIGURATIONS
+# 2. PROVIDERS (MULTI-REGION CONFIG)
 # ==========================================
-
-# Primary Provider Configuration (Default: us-east-1)
 provider "aws" {
-  region = "us-east-1"
+  region = "us-east-1" # Primary Region
 }
 
-# Secondary Provider Configuration (Aliased: us-west-2)
 provider "aws" {
   alias  = "us_west_2"
-  region = "us-west-2"
+  region = "us-west-2" # Secondary Region
 }
 
 # ==========================================
-# INPUT VARIABLES
+# 3. VARIABLES
 # ==========================================
-
-variable "ssh_public_key" {
-  type        = string
-  description = "The public key material passed directly from the workflow run"
-}
-
-# The total number of instances you want to exist per region
 variable "target_count" {
   type        = number
+  description = "Number of instances per region"
   default     = 1
 }
 
-# ==========================================
-# DYNAMIC AMI DATA SOURCE LOOKUPS
-# ==========================================
-
-# Dynamically fetch the latest RHEL 9 AMI in us-east-1
-data "aws_ami" "rhel9_east" {
-  most_recent = true
-  owners      = ["309956199498"] # Official Red Hat Owner ID
-
-  filter {
-    name   = "name"
-    values = ["RHEL-9.*-x86_64-*"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-}
-
-# Dynamically fetch the latest RHEL 9 AMI in us-west-2
-data "aws_ami" "rhel9_west" {
-  provider    = aws.us_west_2
-  most_recent = true
-  owners      = ["309956199498"] # Official Red Hat Owner ID
-
-  filter {
-    name   = "name"
-    values = ["RHEL-9.*-x86_64-*"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-}
 
 # ==========================================
-# SHARED RESOURCES & SECURITY
+# 4. RANDOM UNIQUE SUFFIX GENERATOR
 # ==========================================
-
 resource "random_id" "run_suffix" {
   byte_length = 2
 }
 
-# Key Pair for Primary Region (us-east-1)
-resource "aws_key_pair" "deployer_key_east" {
-  key_name   = "deployer-key-east-${random_id.run_suffix.hex}"
-  public_key = var.ssh_public_key
+# ==========================================
+# 5. DATA SOURCES (DYNAMIC RHEL 9 AMI LOOKUP)
+# ==========================================
+data "aws_ami" "rhel9_east" {
+  most_recent = true
+  owners      = ["309956199498"] # Red Hat Owner ID
+
+  filter {
+    name   = "name"
+    values = ["RHEL-9.*-x86_64-*"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
 }
 
-# Key Pair for Secondary Region (us-west-2)
-resource "aws_key_pair" "deployer_key_west" {
-  provider   = aws.us_west_2
-  key_name   = "deployer-key-west-${random_id.run_suffix.hex}"
-  public_key = var.ssh_public_key
+data "aws_ami" "rhel9_west" {
+  provider    = aws.us_west_2
+  most_recent = true
+  owners      = ["309956199498"]
+
+  filter {
+    name   = "name"
+    values = ["RHEL-9.*-x86_64-*"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
 }
 
-# Security Group for Primary Region (us-east-1)
+# ==========================================
+# 6. SECURITY GROUPS (HTTP & SSH ALLOWED)
+# ==========================================
 resource "aws_security_group" "nginx_sg_east" {
   name        = "nginx_sg_east_${random_id.run_suffix.hex}"
   description = "Allow HTTP and SSH traffic in us-east-1"
@@ -126,7 +112,6 @@ resource "aws_security_group" "nginx_sg_east" {
   }
 }
 
-# Security Group for Secondary Region (us-west-2)
 resource "aws_security_group" "nginx_sg_west" {
   provider    = aws.us_west_2
   name        = "nginx_sg_west_${random_id.run_suffix.hex}"
@@ -155,9 +140,22 @@ resource "aws_security_group" "nginx_sg_west" {
 }
 
 # ==========================================
-# COMPUTE RESOURCES - US-EAST-1 (PRIMARY)
+# 7. SSH KEY PAIRS
 # ==========================================
+resource "aws_key_pair" "deployer_key_east" {
+  key_name   = "deployer-key-east-${random_id.run_suffix.hex}"
+  public_key = var.ssh_public_key
+}
 
+resource "aws_key_pair" "deployer_key_west" {
+  provider   = aws.us_west_2
+  key_name   = "deployer-key-west-${random_id.run_suffix.hex}"
+  public_key = var.ssh_public_key
+}
+
+# ==========================================
+# 8. EC2 COMPUTE INSTANCES WITH USER DATA
+# ==========================================
 resource "aws_instance" "web_server_east" {
   count                  = var.target_count
   ami                    = data.aws_ami.rhel9_east.id
@@ -165,35 +163,16 @@ resource "aws_instance" "web_server_east" {
   key_name               = aws_key_pair.deployer_key_east.key_name
   vpc_security_group_ids = [aws_security_group.nginx_sg_east.id]
 
-  tags = {
-    Name = "East-Server-${count.index + 1}-${random_id.run_suffix.hex}"
-  }
-
   user_data = <<-EOF
               #!/bin/bash
-              echo '[nginx-stable]' > /etc/yum.repos.d/nginx.repo
-              echo 'name=nginx stable repo' >> /etc/yum.repos.d/nginx.repo
-              echo 'baseurl=http://nginx.org/packages/rhel/9/x86_64/' >> /etc/yum.repos.d/nginx.repo
-              echo 'gpgcheck=0' >> /etc/yum.repos.d/nginx.repo
-              echo 'enabled=1' >> /etc/yum.repos.d/nginx.repo
-              echo 'module_hotfixes=true' >> /etc/yum.repos.d/nginx.repo
-
-              dnf clean all
-              dnf makecache -y
-              dnf install -y nginx
-
-              echo "<h1>Hello from East Region Server ${count.index + 1}</h1>" > /usr/share/nginx/html/index.html
-
-              systemctl start nginx
-              systemctl enable nginx
+              sudo dnf install -y nginx
+              sudo systemctl enable --now nginx
               EOF
 
-  user_data_replace_on_change = true
+  tags = {
+    Name = "WebServer-East-${random_id.run_suffix.hex}-${count.index}"
+  }
 }
-
-# ==========================================
-# COMPUTE RESOURCES - US-WEST-2 (SECONDARY)
-# ==========================================
 
 resource "aws_instance" "web_server_west" {
   provider               = aws.us_west_2
@@ -203,42 +182,29 @@ resource "aws_instance" "web_server_west" {
   key_name               = aws_key_pair.deployer_key_west.key_name
   vpc_security_group_ids = [aws_security_group.nginx_sg_west.id]
 
-  tags = {
-    Name = "West-Server-${count.index + 1}-${random_id.run_suffix.hex}"
-  }
+# Add this line to stop the replacement!
+  user_data_replace_on_change = false
 
   user_data = <<-EOF
               #!/bin/bash
-              echo '[nginx-stable]' > /etc/yum.repos.d/nginx.repo
-              echo 'name=nginx stable repo' >> /etc/yum.repos.d/nginx.repo
-              echo 'baseurl=http://nginx.org/packages/rhel/9/x86_64/' >> /etc/yum.repos.d/nginx.repo
-              echo 'gpgcheck=0' >> /etc/yum.repos.d/nginx.repo
-              echo 'enabled=1' >> /etc/yum.repos.d/nginx.repo
-              echo 'module_hotfixes=true' >> /etc/yum.repos.d/nginx.repo
-
-              dnf clean all
-              dnf makecache -y
-              dnf install -y nginx
-
-              echo "<h1>Hello from West Region Server ${count.index + 1}</h1>" > /usr/share/nginx/html/index.html
-
-              systemctl start nginx
-              systemctl enable nginx
+              sudo dnf install -y nginx
+              sudo systemctl enable --now nginx
               EOF
 
-  user_data_replace_on_change = true
+  tags = {
+    Name = "WebServer-West-${random_id.run_suffix.hex}-${count.index}"
+  }
 }
 
 # ==========================================
-# OUTPUT FIELDS
+# 9. OUTPUTS
 # ==========================================
-
 output "us_east_1_public_ips" {
   value       = aws_instance.web_server_east[*].public_ip
-  description = "Public IPs of running servers in us-east-1"
+  description = "Public IP addresses of instances in East region"
 }
 
 output "us_west_2_public_ips" {
   value       = aws_instance.web_server_west[*].public_ip
-  description = "Public IPs of running servers in us-west-2"
+  description = "Public IP addresses of instances in West region"
 }
