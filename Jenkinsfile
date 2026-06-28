@@ -25,13 +25,14 @@ pipeline {
         }
 
         stage('Terraform Plan') {
-            steps {
-                dir('build-ec2') {
-                    sh 'terraform plan -input=false'
-                }
-            }
-        }
-
+           steps {
+              dir('build-ec2') {
+                 // This verifies if the pipeline sees the variable binding
+                 sh 'echo "The key is: ${TF_VAR_ssh_public_key}"'
+                 sh 'terraform plan -input=false'
+          }
+      }
+  }
         stage('Terraform Apply') {
             steps {
                 dir('build-ec2') {
