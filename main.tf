@@ -104,18 +104,18 @@ resource "aws_instance" "web_east" {
 # 4. US-WEST-2 REGIONAL INFRASTRUCTURE (REDUNDANT ARCHITECTURE)
 # ==============================================================================
 provider "aws" {
-  alias  = "west"
+  alias  = "us_west_2"
   region = "us-west-2"
 }
 
 resource "aws_key_pair" "deployer_key_west" {
-  provider   = aws.west
+  provider   = aws.us_west_2
   key_name   = "deployer-key-west-${random_id.run_suffix.hex}"
   public_key = var.ssh_public_key
 }
 
 resource "aws_security_group" "nginx_sg_west" {
-  provider    = aws.west
+  provider    = aws.us_west_2
   name        = "nginx-access-west-${random_id.run_suffix.hex}"
   description = "Allow inbound web traffic"
 
@@ -143,8 +143,8 @@ resource "aws_security_group" "nginx_sg_west" {
 
 resource "aws_instance" "web_west" {
   count                  = 1
-  provider               = aws.west
-  ami                    = "ami-038230b986e39564c" # Ubuntu 24.04 LTS in us-west-2
+  provider               = aws.us_west_2
+  ami                    = "ami-05d38da78ce859165" # Verified Ubuntu 24.04 LTS in us-west-2
   instance_type          = var.instance_type
   key_name               = aws_key_pair.deployer_key_west.key_name
   vpc_security_group_ids = [aws_security_group.nginx_sg_west.id]
